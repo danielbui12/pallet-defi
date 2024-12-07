@@ -36,6 +36,7 @@ sp-runtime = { version = "37.0.0", default-features = false, features = [
 
 # local pallets
 pallet-stable-amm = { path = "../pallets/stable-amm", default-features = false }
+pallet-anti-mev-amm = { path = "../pallets/anti-mev-amm", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "22.0.0", optional = true }
@@ -57,6 +58,7 @@ std = [
 	"pallet-assets/std",
 
 	"pallet-stable-amm/std",
+	"pallet-anti-mev-amm/std",
 
 	"sp-genesis-builder/std",
 	"sp-runtime/std",
@@ -69,6 +71,9 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-sudo/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
+
+	"pallet-stable-amm/runtime-benchmarks",
+	"pallet-anti-mev-amm/runtime-benchmarks",
 
 	"sp-runtime/runtime-benchmarks",
 ]

@@ -76,7 +76,10 @@ mod runtime {
 	pub type Assets = pallet_assets;
 
 	#[runtime::pallet_index(5)]
-	pub type StableAMM = pallet_stable_amm;
+	pub type StableAmm = pallet_stable_amm;
+
+	#[runtime::pallet_index(6)]
+	pub type AntiMevAmm = pallet_anti_mev_amm;
 
 	#[runtime::pallet_index(99)]
 	pub type Timestamp = pallet_timestamp;
@@ -167,13 +170,19 @@ impl pallet_assets::Config for Runtime {
 }
 
 parameter_types! {
-    pub const StableAMMPalletId: PalletId = PalletId(*b"par/stbl");
+    pub const StableAmmPalletId: PalletId = PalletId(*b"par/stbl");
 }
 /// Configure the pallet-stable-amm in pallets/stable-amm.
 impl pallet_stable_amm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-    type PalletId = StableAMMPalletId;
+    type PalletId = StableAmmPalletId;
     type WeightInfo = pallet_stable_amm::weights::SubstrateWeight<Runtime>;
+}
+
+/// Configure the pallet-anti-mev-amm in pallets/anti-mev-amm.
+impl pallet_anti_mev_amm::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_anti_mev_amm::weights::SubstrateWeight<Runtime>;
 }
 
 
@@ -207,7 +216,8 @@ mod benches {
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_balances, Balances]
 		[pallet_sudo, Sudo]
-		[pallet_stable_amm, StableAMM]
+		[pallet_stable_amm, StableAmm]
+		[pallet_anti_mev_amm, AntiMevAmm]
 		[pallet_timestamp, Timestamp]
 	);
 }
