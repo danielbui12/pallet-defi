@@ -22,7 +22,9 @@ use frame::{
 	traits::One,
 };
 use pallet_transaction_payment::{ConstFeeMultiplier, FeeDetails, Multiplier, RuntimeDispatchInfo};
-use sp_runtime::traits::Convert;
+use sp_runtime::{
+    traits::{Convert, Identity},
+};
 
 #[runtime_version]
 const VERSION: RuntimeVersion = RuntimeVersion {
@@ -179,10 +181,30 @@ impl pallet_stable_amm::Config for Runtime {
     type WeightInfo = pallet_stable_amm::weights::SubstrateWeight<Runtime>;
 }
 
+
+parameter_types! {
+    pub const AniMevAmmPalletId: PalletId = PalletId(*b"anti/mev");
+}
 /// Configure the pallet-anti-mev-amm in pallets/anti-mev-amm.
 impl pallet_anti_mev_amm::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
+    type PalletId = AniMevAmmPalletId;
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type AssetBalance = Balance;
+    type AssetToCurrencyBalance = Identity;
+    type CurrencyToAssetBalance = Identity;
+    type AssetId = u32;
+    type Assets = Assets;
+    type AssetRegistry = Assets;
     type WeightInfo = pallet_anti_mev_amm::weights::SubstrateWeight<Runtime>;
+    // Provider fee is 0.3%
+    type ProviderFeeNumerator = ConstU128<3>;
+    type ProviderFeeDenominator = ConstU128<1000>;
+    type MinInitialCurrency = ConstU128<1>;
+    type MinInitialToken = ConstU128<1>;
+    type Fragment = ConstU32<10>;
+    // Max queue amount is 2, there can be at most 4 transactions
+    type MinQueueAmount = ConstU32<2>;
 }
 
 

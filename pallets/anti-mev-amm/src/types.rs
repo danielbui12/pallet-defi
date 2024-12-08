@@ -12,16 +12,29 @@ pub struct Pair<AssetId, Balance, AssetBalance> {
     pub liquidity_token_id: AssetId,
 }
 
-/// This enum represents the swap type.
+/// This enum represents the constant-product swap type.
 /// It can be based on input or output.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub enum Swap<InputBalance, OutputBalance> {
+pub enum CpSwap<InputBalance, OutputBalance> {
     BasedInput {
         input_amount: InputBalance,
         min_output: OutputBalance,
     },
     BasedOutput {
         max_input: InputBalance,
+        output_amount: OutputBalance,
+    },
+}
+
+
+/// This enum represents the anti-mev swap type.
+/// It can be based on input or output.
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub enum AntiMevSwap<InputBalance, OutputBalance> {
+    BasedInput {
+        input_amount: InputBalance,
+    },
+    BasedOutput {
         output_amount: OutputBalance,
     },
 }

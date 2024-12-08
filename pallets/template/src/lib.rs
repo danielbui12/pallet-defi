@@ -66,10 +66,12 @@ pub mod pallet {
             Ok(())
 		}
 	}
-}
 
-impl<T: Config> Pallet<T> {
-    pub fn inner_do_something(origin: OriginFor<T>) -> DispatchResult {
-        Ok(())
+
+    impl<T: Config> Pallet<T> {
+        pub fn inner_do_something(origin: OriginFor<T>) -> DispatchResult {
+            Ok(())
+        }
     }
 }
+

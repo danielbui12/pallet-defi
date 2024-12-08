@@ -105,7 +105,7 @@ impl pallet_anti_mev_amm::Config for Test_Runtime {
     type PalletId = AniMevAmmPalletId;
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
-    type AssetBalance = u128;
+    type AssetBalance = Balance;
     type AssetToCurrencyBalance = Identity;
     type CurrencyToAssetBalance = Identity;
     type AssetId = u32;
@@ -117,6 +117,9 @@ impl pallet_anti_mev_amm::Config for Test_Runtime {
     type ProviderFeeDenominator = ConstU128<1000>;
     type MinInitialCurrency = ConstU128<MIN_INITIAL_CURRENCY>;
     type MinInitialToken = ConstU128<MIN_INITIAL_TOKEN>;
+    type Fragment = ConstU32<10>;
+    // Max queue amount is 2, there can be at most 4 transactions
+    type MinQueueAmount = ConstU32<2>;
 }
 
 pub(crate) const ACCOUNT_ALICE: u64 = 0;
