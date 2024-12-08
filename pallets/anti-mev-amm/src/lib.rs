@@ -9,6 +9,9 @@ mod benchmarking;
 #[cfg(test)]
 mod mock;
 
+#[cfg(test)]
+mod tests;
+
 pub mod constant_product;
 pub mod anti_mev;
 pub mod types;
@@ -564,6 +567,34 @@ pub mod pallet {
 
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::default())]
+        pub fn cp_swap_asset_for_currency(
+            origin: OriginFor<T>,
+            asset_id: AssetIdOf<T>,
+            swap: CpSwap<AssetBalanceOf<T>, BalanceOf<T>>,
+            deadline: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            // validate the input
+            let caller = ensure_signed(origin)?;
+            Self::check_deadline(&deadline)?;
+            Self::cp_check_trade_amount(&swap)?;
+            let pair = Self::get_pair(&asset_id)?;
+
+            // compute price
+            let (currency_amount, token_amount) =
+                Self::cp_get_asset_to_currency_price(&pair, swap)?;
+            Self::check_enough_tokens(&asset_id, &caller, &token_amount)?;
+
+            // perform the trade
+            Self::do_cp_swap_asset_for_currency(
+                pair,
+                currency_amount,
+                token_amount,
+                caller,
+            )
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_currency_for_asset(
             origin: OriginFor<T>,
             asset_id: AssetIdOf<T>,
@@ -619,7 +650,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(4)]
+        #[pallet::call_index(5)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_asset_for_currency(
             origin: OriginFor<T>,
@@ -677,7 +708,7 @@ pub mod pallet {
         }
 
 
-        #[pallet::call_index(5)]
+        #[pallet::call_index(6)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn settle_and_distribute(
             origin: OriginFor<T>,

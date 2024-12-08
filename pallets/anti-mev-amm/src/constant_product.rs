@@ -1,7 +1,6 @@
 use super::*;
 
 impl<T: Config> Pallet<T> {
-    /// Perform currency and asset transfers, update pair balances, emit event
     #[transactional]
     pub(crate) fn do_cp_swap_currency_for_asset(
         mut pair: PairOf<T>,
@@ -42,6 +41,46 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
+    #[transactional]
+    pub(crate) fn do_cp_swap_asset_for_currency(
+        mut pair: PairOf<T>,
+        currency_amount: BalanceOf<T>,
+        token_amount: AssetBalanceOf<T>,
+        buyer: AccountIdOf<T>,
+    ) -> DispatchResult {
+        let asset_id = pair.asset_id.clone();
+        let pallet_account = T::pallet_account();
+        if buyer != pallet_account {
+            <T as pallet::Config>::Currency::transfer(
+                &buyer,
+                &pallet_account,
+                currency_amount,
+                ExistenceRequirement::AllowDeath,
+            )?;
+        }
+        T::Assets::transfer(
+            asset_id.clone(),
+            &pallet_account,
+            &buyer,
+            token_amount,
+            Preservation::Expendable,
+        )?;
+
+        // update pair balances
+        pair.currency_reserve.saturating_reduce(currency_amount);
+        pair.token_reserve.saturating_accrue(token_amount);
+        <Pairs<T>>::insert(asset_id.clone(), pair);
+
+        // emit event
+        Self::deposit_event(Event::SwappedAssetForCurrency(
+            asset_id,
+            buyer,
+            currency_amount,
+            token_amount,
+        ));
+        Ok(())
+    }
+
     pub(crate) fn cp_compute_currency_to_asset(
         pair: &PairOf<T>,
         swap: CpSwap<BalanceOf<T>, AssetBalanceOf<T>>,
@@ -74,6 +113,40 @@ impl<T: Config> Pallet<T> {
             }
         }
     }
+
+    pub(crate) fn cp_get_asset_to_currency_price(
+        pair: &PairOf<T>,
+        swap: CpSwap<AssetBalanceOf<T>, BalanceOf<T>>,
+    ) -> Result<(BalanceOf<T>, AssetBalanceOf<T>), Error<T>> {
+        match swap {
+            CpSwap::BasedInput {
+                input_amount: token_amount,
+                min_output: min_currency,
+            } => {
+                let currency_amount = Self::cp_get_output_amount(
+                    &T::asset_to_currency(token_amount),
+                    &T::asset_to_currency(pair.token_reserve),
+                    &pair.currency_reserve,
+                )?;
+                ensure!(currency_amount >= min_currency, Error::SlippageExceeded);
+                Ok((currency_amount, token_amount))
+            }
+            CpSwap::BasedOutput {
+                max_input: max_tokens,
+                output_amount: currency_amount,
+            } => {
+                let token_amount = Self::cp_get_input_amount(
+                    &currency_amount,
+                    &T::asset_to_currency(pair.token_reserve),
+                    &pair.currency_reserve,
+                )?;
+                let token_amount = T::currency_to_asset(token_amount);
+                ensure!(token_amount <= max_tokens, Error::SlippageExceeded);
+                Ok((currency_amount, token_amount))
+            }
+        }
+    }
+
 
     pub(crate) fn cp_check_trade_amount<A: Zero, B: Zero>(
         amount: &CpSwap<A, B>,

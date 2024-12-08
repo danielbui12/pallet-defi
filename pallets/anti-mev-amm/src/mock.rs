@@ -127,6 +127,7 @@ pub(crate) const ACCOUNT_BOB: u64 = 1;
 pub(crate) const ACCOUNT_CHARLIE: u64 = 2;
 pub(crate) const ACCOUNT_DAVE: u64 = 3;
 pub(crate) const ACCOUNT_ERWIN: u64 = 4;
+pub(crate) const ACCOUNT_ATTACKER: u64 = 5;
 
 pub(crate) const MIN_INITIAL_CURRENCY: u128 = 1;
 pub(crate) const MIN_INITIAL_TOKEN: u128 = 1;
@@ -135,6 +136,7 @@ pub(crate) const INIT_LIQUIDITY: u128 = 1_000_000_000_000;
 
 pub(crate) const ASSET_A: u32 = 100;
 pub(crate) const ASSET_B: u32 = 101;
+
 pub(crate) const LIQ_TOKEN_A: u32 = 200;
 pub(crate) const LIQ_TOKEN_B: u32 = 201;
 
@@ -153,10 +155,30 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (ACCOUNT_CHARLIE, INIT_BALANCE),
             (ACCOUNT_DAVE, INIT_BALANCE),
             (ACCOUNT_ERWIN, INIT_BALANCE),
+            (ACCOUNT_ATTACKER, INIT_BALANCE),
         ],
     }
     .assimilate_storage(&mut storage)
     .unwrap();
+    
+    // Initialize the assets
+	pallet_assets::GenesisConfig::<Test_Runtime> {
+        assets: vec![
+            (ASSET_A, ACCOUNT_ALICE, true, 1),
+            (ASSET_B, ACCOUNT_ALICE, true, 1),
+        ],
+        metadata: vec![],
+        accounts: vec![
+            (ASSET_A, ACCOUNT_ALICE, INIT_BALANCE),
+            (ASSET_A, ACCOUNT_BOB, INIT_BALANCE),
+            (ASSET_A, ACCOUNT_ATTACKER, INIT_BALANCE),
+            (ASSET_B, ACCOUNT_ALICE, INIT_BALANCE),
+            (ASSET_B, ACCOUNT_BOB, INIT_BALANCE),
+            (ASSET_B, ACCOUNT_ATTACKER, INIT_BALANCE),
+        ],
+	}
+    .assimilate_storage(&mut storage)
+	.unwrap();
 
     // Initialize genesis assets
     pallet_anti_mev_amm::GenesisConfig::<Test_Runtime> {
@@ -164,6 +186,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     }
     .assimilate_storage(&mut storage)
     .unwrap();
+
+	
 
     // Create the test externalities
     let mut test_ext: sp_io::TestExternalities = storage.into();
