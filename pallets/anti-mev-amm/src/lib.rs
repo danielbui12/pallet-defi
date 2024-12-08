@@ -595,17 +595,17 @@ pub mod pallet {
 
         #[pallet::call_index(4)]
         #[pallet::weight(T::WeightInfo::default())]
-        pub fn asset_to_asset(
+        pub fn cp_swap_asset_to_asset(
             origin: OriginFor<T>,
             sold_asset_id: AssetIdOf<T>,
             bought_asset_id: AssetIdOf<T>,
-            amount: CpSwap<AssetBalanceOf<T>, AssetBalanceOf<T>>,
+            swap: CpSwap<AssetBalanceOf<T>, AssetBalanceOf<T>>,
             deadline: BlockNumberFor<T>,
         ) -> DispatchResult {
             // validate input
             let caller = ensure_signed(origin)?;
             Self::check_deadline(&deadline)?;
-            Self::cp_check_trade_amount(&amount)?;
+            Self::cp_check_trade_amount(&swap)?;
             let sold_asset_pair = Self::get_pair(&sold_asset_id)?;
             let bought_asset_pair = Self::get_pair(&bought_asset_id)?;
 
@@ -614,7 +614,7 @@ pub mod pallet {
                 Self::cp_compute_asset_to_asset_price(
                     &sold_asset_pair,
                     &bought_asset_pair,
-                    amount,
+                    swap,
                 )?;
             Self::check_enough_tokens(&sold_asset_id, &caller, &sold_token_amount)?;
 

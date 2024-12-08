@@ -7,9 +7,18 @@ use frame_support::assert_ok;
 #[test]
 fn should_see_attacker_manipulate_market() {
 	new_test_ext().execute_with(|| {
+        // Create Pair for ASSET_B
+        assert_ok!(AntiMevAmm::create_pair(
+            RuntimeOrigin::signed(ACCOUNT_ALICE),
+            ASSET_B,
+            LIQ_TOKEN_B,
+            INIT_LIQUIDITY,
+            INIT_LIQUIDITY
+        ));
+
         // At the beginning, both Attacker and Bob are the same
-        let attacker_initial_currency_balance = <Test_Runtime as Config>::Currency::free_balance(&ACCOUNT_ATTACKER);
-        let attacker_initial_asset_balance = <Test_Runtime as Config>::Assets::balance(ASSET_A.clone(), &ACCOUNT_ATTACKER);
+        let attacker_initial_asset_a_balance = <Test_Runtime as Config>::Assets::balance(ASSET_A.clone(), &ACCOUNT_ATTACKER);
+        let attacker_initial_asset_b_balance = <Test_Runtime as Config>::Assets::balance(ASSET_B.clone(), &ACCOUNT_ATTACKER);
 
         let buy_op = CpSwap::BasedInput { 
             input_amount: 100,
@@ -17,40 +26,41 @@ fn should_see_attacker_manipulate_market() {
         };
 
         // Attacker try to buy before Bob
-        assert_ok!(AntiMevAmm::cp_swap_currency_for_asset(
+        assert_ok!(AntiMevAmm::cp_swap_asset_to_asset(
             RuntimeOrigin::signed(ACCOUNT_ATTACKER),
             ASSET_A,
+            ASSET_B,
             buy_op.clone(),
             System::block_number().saturating_add(1)
         ));
-        let attacker_after_asset_balance = <Test_Runtime as Config>::Assets::balance(ASSET_A.clone(), &ACCOUNT_ATTACKER);
-        assert!(attacker_after_asset_balance > attacker_initial_asset_balance);
-        println!("Attacker asset balance profit: {:?}", attacker_after_asset_balance - attacker_initial_asset_balance);
+        let attacker_after_asset_b_balance = <Test_Runtime as Config>::Assets::balance(ASSET_B.clone(), &ACCOUNT_ATTACKER);
+        assert!(attacker_after_asset_b_balance > attacker_initial_asset_b_balance);
 
         // Bob swap
-        assert_ok!(AntiMevAmm::cp_swap_currency_for_asset(
+        assert_ok!(AntiMevAmm::cp_swap_asset_to_asset(
             RuntimeOrigin::signed(ACCOUNT_BOB),
             ASSET_A,
+            ASSET_B,
             buy_op,
             System::block_number().saturating_add(1)
         ));
 
         // Attacker sell
-        assert_ok!(AntiMevAmm::cp_swap_asset_for_currency(
+        assert_ok!(AntiMevAmm::cp_swap_asset_to_asset(
             RuntimeOrigin::signed(ACCOUNT_ATTACKER),
+            ASSET_B,
             ASSET_A,
             CpSwap::BasedInput { 
-                input_amount: attacker_after_asset_balance - attacker_initial_asset_balance,
+                input_amount: attacker_after_asset_b_balance - attacker_initial_asset_b_balance,
                 min_output: 10,
             },
             System::block_number().saturating_add(1)
         ));
+
         // Compare the received values
-        let attacker_after_currency_balance = <Test_Runtime as Config>::Currency::free_balance(&ACCOUNT_ATTACKER);
-        // This cause error because the gas fee is too high 😂😂😂
-        // TODO: update test case to swap asset for asset
-        // println!("Attacker profit: {:?}", attacker_after_currency_balance - attacker_initial_currency_balance); 
-        // assert!(attacker_after_currency_balance > attacker_initial_currency_balance);
+        let attacker_after_asset_a_balance = <Test_Runtime as Config>::Assets::balance(ASSET_A.clone(), &ACCOUNT_ATTACKER);
+        println!("Attacker profit: {:?}", attacker_after_asset_a_balance - attacker_initial_asset_a_balance); 
+        assert!(attacker_after_asset_a_balance > attacker_initial_asset_a_balance);
 	});
 }
 
