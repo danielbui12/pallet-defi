@@ -81,6 +81,30 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
+    #[transactional]
+    pub(crate) fn do_cp_swap_asset_for_asset(
+        sold_asset_pair: PairOf<T>,
+        bought_asset_pair: PairOf<T>,
+        currency_amount: BalanceOf<T>,
+        sold_token_amount: AssetBalanceOf<T>,
+        bought_token_amount: AssetBalanceOf<T>,
+        buyer: AccountIdOf<T>,
+    ) -> DispatchResult {
+        let pallet_account: AccountIdOf<T> = T::pallet_account();
+        Self::do_cp_swap_asset_for_currency(
+            sold_asset_pair,
+            currency_amount,
+            sold_token_amount,
+            buyer.clone(),
+        )?;
+        Self::do_cp_swap_currency_for_asset(
+            bought_asset_pair,
+            currency_amount,
+            bought_token_amount,
+            buyer,
+        )
+    }
+
     pub(crate) fn cp_compute_currency_to_asset(
         pair: &PairOf<T>,
         swap: CpSwap<BalanceOf<T>, AssetBalanceOf<T>>,
@@ -96,6 +120,12 @@ impl<T: Config> Pallet<T> {
                     &T::asset_to_currency(pair.token_reserve),
                 )?;
                 let token_amount = T::currency_to_asset(token_amount);
+                log::debug!(
+                    target: LOG_TARGET,
+                    "cp_compute_currency_to_asset: currency_amount: {:?}, token_amount: {:?}",
+                    currency_amount,
+                    token_amount
+                );
                 ensure!(token_amount >= min_tokens, Error::SlippageExceeded);
                 Ok((currency_amount, token_amount))
             }
@@ -114,7 +144,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub(crate) fn cp_get_asset_to_currency_price(
+    pub(crate) fn cp_compute_asset_to_currency_price(
         pair: &PairOf<T>,
         swap: CpSwap<AssetBalanceOf<T>, BalanceOf<T>>,
     ) -> Result<(BalanceOf<T>, AssetBalanceOf<T>), Error<T>> {
@@ -147,6 +177,53 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    pub(crate) fn cp_compute_asset_to_asset_price(
+        sold_asset_pair: &PairOf<T>,
+        bought_asset_pair: &PairOf<T>,
+        amount: CpSwap<AssetBalanceOf<T>, AssetBalanceOf<T>>,
+    ) -> Result<AssetToAssetPrice<T>, Error<T>> {
+        match amount {
+            CpSwap::BasedInput {
+                input_amount: sold_token_amount,
+                min_output: min_bought_tokens,
+            } => {
+                let currency_amount = Self::cp_get_output_amount(
+                    &T::asset_to_currency(sold_token_amount),
+                    &T::asset_to_currency(sold_asset_pair.token_reserve),
+                    &sold_asset_pair.currency_reserve,
+                )?;
+                let bought_token_amount = Self::cp_get_output_amount(
+                    &currency_amount,
+                    &bought_asset_pair.currency_reserve,
+                    &T::asset_to_currency(bought_asset_pair.token_reserve),
+                )?;
+                let bought_token_amount = T::currency_to_asset(bought_token_amount);
+                ensure!(
+                    bought_token_amount >= min_bought_tokens,
+                    Error::<T>::SlippageExceeded
+                );
+                Ok((sold_token_amount, currency_amount, bought_token_amount))
+            }
+            CpSwap::BasedOutput {
+                max_input: max_sold_tokens,
+                output_amount: bought_token_amount,
+            } => {
+                let currency_amount = Self::cp_get_input_amount(
+                    &T::asset_to_currency(bought_token_amount),
+                    &bought_asset_pair.currency_reserve,
+                    &T::asset_to_currency(bought_asset_pair.token_reserve),
+                )?;
+                let sold_token_amount = Self::cp_get_input_amount(
+                    &currency_amount,
+                    &T::asset_to_currency(sold_asset_pair.token_reserve),
+                    &sold_asset_pair.currency_reserve,
+                )?;
+                let sold_token_amount = T::currency_to_asset(sold_token_amount);
+                ensure!(sold_token_amount <= max_sold_tokens, Error::<T>::SlippageExceeded);
+                Ok((sold_token_amount, currency_amount, bought_token_amount))
+            }
+        }
+    }
 
     pub(crate) fn cp_check_trade_amount<A: Zero, B: Zero>(
         amount: &CpSwap<A, B>,

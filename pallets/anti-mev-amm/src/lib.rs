@@ -28,14 +28,14 @@ use frame_support::{
     },
     traits::{
         fungibles::{Create, Destroy, Inspect, Mutate},
-        tokens::{Balance, Fortitude, Precision, Preservation, WithdrawConsequence},
+        tokens::{Balance, Preservation, WithdrawConsequence},
         ExistenceRequirement, Currency,
     },
     transactional, PalletId,
 };
 use codec::EncodeLike;
 use sp_std::{
-    ops::Sub, vec, vec::Vec,
+    vec, vec::Vec,
     fmt::Debug,
 };
 
@@ -581,7 +581,7 @@ pub mod pallet {
 
             // compute price
             let (currency_amount, token_amount) =
-                Self::cp_get_asset_to_currency_price(&pair, swap)?;
+                Self::cp_compute_asset_to_currency_price(&pair, swap)?;
             Self::check_enough_tokens(&asset_id, &caller, &token_amount)?;
 
             // perform the trade
@@ -594,6 +594,42 @@ pub mod pallet {
         }
 
         #[pallet::call_index(4)]
+        #[pallet::weight(T::WeightInfo::default())]
+        pub fn asset_to_asset(
+            origin: OriginFor<T>,
+            sold_asset_id: AssetIdOf<T>,
+            bought_asset_id: AssetIdOf<T>,
+            amount: CpSwap<AssetBalanceOf<T>, AssetBalanceOf<T>>,
+            deadline: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            // validate input
+            let caller = ensure_signed(origin)?;
+            Self::check_deadline(&deadline)?;
+            Self::cp_check_trade_amount(&amount)?;
+            let sold_asset_pair = Self::get_pair(&sold_asset_id)?;
+            let bought_asset_pair = Self::get_pair(&bought_asset_id)?;
+
+            // Pre Compute price
+            let (sold_token_amount, currency_amount, bought_token_amount) =
+                Self::cp_compute_asset_to_asset_price(
+                    &sold_asset_pair,
+                    &bought_asset_pair,
+                    amount,
+                )?;
+            Self::check_enough_tokens(&sold_asset_id, &caller, &sold_token_amount)?;
+
+            // Perform trade
+            Self::do_cp_swap_asset_for_asset(
+                sold_asset_pair,
+                bought_asset_pair,
+                currency_amount,
+                sold_token_amount,
+                bought_token_amount,
+                caller,
+            )
+        }
+
+        #[pallet::call_index(97)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_currency_for_asset(
             origin: OriginFor<T>,
@@ -650,7 +686,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(5)]
+        #[pallet::call_index(98)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_asset_for_currency(
             origin: OriginFor<T>,
@@ -708,7 +744,7 @@ pub mod pallet {
         }
 
 
-        #[pallet::call_index(6)]
+        #[pallet::call_index(99)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn settle_and_distribute(
             origin: OriginFor<T>,
