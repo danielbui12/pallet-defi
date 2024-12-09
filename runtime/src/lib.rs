@@ -28,8 +28,8 @@ use sp_runtime::{
 
 #[runtime_version]
 const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("daniel-defi-hub"),
-	impl_name: create_runtime_str!("daniel-defi-hub"),
+	spec_name: create_runtime_str!("daniel-dex-hub"),
+	impl_name: create_runtime_str!("daniel-dex-hub"),
 	authoring_version: 1,
 	spec_version: 0,
 	impl_version: 1,
