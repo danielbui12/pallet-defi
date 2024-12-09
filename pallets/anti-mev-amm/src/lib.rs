@@ -247,12 +247,16 @@ pub mod pallet {
                     "Unexpected error while minting liquidity tokens for Provider"
                 );
 
-                // Balances update --------------------------
+                // Balances update
                 pair
                     .currency_reserve
                     .saturating_accrue(*currency_amount);
                 pair.token_reserve.saturating_accrue(*token_amount);
                 <Pairs<T>>::insert(asset_id.clone(), pair);
+
+                // Create default queue
+                <CurrencyToAssetQueue<T>>::insert(asset_id.clone(), Vec::<T::AccountId>::new());
+                <AssetToCurrencyQueue<T>>::insert(asset_id.clone(), Vec::<T::AccountId>::new());
             }
         }
     }
@@ -629,7 +633,9 @@ pub mod pallet {
             )
         }
 
-        #[pallet::call_index(97)]
+        // TODO: Add function swap asset to asset
+
+        #[pallet::call_index(96)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_currency_for_asset(
             origin: OriginFor<T>,
@@ -686,7 +692,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(98)]
+        #[pallet::call_index(97)]
         #[pallet::weight(T::WeightInfo::default())]
         pub fn add_swap_asset_for_currency(
             origin: OriginFor<T>,
@@ -743,10 +749,11 @@ pub mod pallet {
             Ok(())
         }
 
+        // TODO: add function to settle and distribute asset
 
         #[pallet::call_index(99)]
         #[pallet::weight(T::WeightInfo::default())]
-        pub fn settle_and_distribute(
+        pub fn settle_and_distribute_currency(
             origin: OriginFor<T>,
             asset_id: AssetIdOf<T>,
         ) -> DispatchResult {
@@ -845,11 +852,11 @@ pub mod pallet {
             // Update the reserves
             let pallet_account = T::pallet_account();
             ensure!(
-                <T as Config>::Currency::free_balance(&pallet_account) < temporary_currency_reserve,
+                <T as Config>::Currency::free_balance(&pallet_account) >= temporary_currency_reserve,
                 Error::<T>::CurrencyLeak
             );
             ensure!(
-                T::Assets::balance(asset_id.clone(), &pallet_account) < T::currency_to_asset(temporary_asset_reserve),
+                T::Assets::balance(asset_id.clone(), &pallet_account) >= T::currency_to_asset(temporary_asset_reserve),
                 Error::<T>::AssetLeak
             );
 
