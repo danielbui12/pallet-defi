@@ -3,11 +3,11 @@ use super::*;
 impl<T: Config> Pallet<T> {
     pub (crate) fn do_anti_mev_swap_currency_for_asset(
         asset_id: &AssetIdOf<T>,
-        trader: &T::AccountId,
+        recipient: &T::AccountId,
         asset_out: &BalanceOf<T>,
         total_cumulative_currency: &BalanceOf<T>,
     ) -> DispatchResult {
-        let amount_in: BalanceOf<T> = Self::get_pair_currency_cumulative(&asset_id, &trader);
+        let amount_in: BalanceOf<T> = Self::get_pair_currency_cumulative(&asset_id, &recipient);
         let amount_out: AssetBalanceOf<T> = T::currency_to_asset(
             asset_out.clone() * amount_in / total_cumulative_currency.clone()
         );
@@ -15,13 +15,14 @@ impl<T: Config> Pallet<T> {
         T::Assets::transfer(
             asset_id.clone(),
             &pallet_account,
-            &trader,
+            &recipient,
             amount_out,
             Preservation::Expendable,
         )?;
         Self::deposit_event(Event::SwappedCurrencyForAsset(
             asset_id.clone(),
-            trader.clone(),
+            recipient.clone(),
+            recipient.clone(),
             amount_in,
             amount_out,
         ));
@@ -30,24 +31,27 @@ impl<T: Config> Pallet<T> {
 
     pub (crate) fn do_anti_mev_swap_asset_for_currency(
         asset_id: &AssetIdOf<T>,
-        trader: &T::AccountId,
+        recipient: &T::AccountId,
         asset_out: &AssetBalanceOf<T>,
         total_cumulative_asset: &AssetBalanceOf<T>,
     ) -> DispatchResult {
-        let amount_in: AssetBalanceOf<T> = Self::get_pair_asset_cumulative(&asset_id, &trader);
+        let amount_in: AssetBalanceOf<T> = Self::get_pair_asset_cumulative(&asset_id, &recipient);
         let amount_out: BalanceOf<T> = T::asset_to_currency(
             asset_out.clone() * amount_in / total_cumulative_asset.clone()
         );
         let pallet_account = T::pallet_account();
-        <T as pallet::Config>::Currency::transfer(
-            &pallet_account,
-            &trader,
-            amount_out,
-            ExistenceRequirement::AllowDeath,
-        )?;
+        if recipient.clone() != pallet_account {
+            <T as pallet::Config>::Currency::transfer(
+                &pallet_account,
+                &recipient,
+                amount_out,
+                ExistenceRequirement::AllowDeath,
+            )?;
+        }
         Self::deposit_event(Event::SwappedAssetForCurrency(
             asset_id.clone(),
-            trader.clone(),
+            recipient.clone(),
+            recipient.clone(),
             amount_out,
             amount_in,
         ));
@@ -124,7 +128,7 @@ impl<T: Config> Pallet<T> {
     pub(crate) fn get_pair_asset_queue(
         asset_id: &AssetIdOf<T>,
     ) -> Result<Vec<T::AccountId>, Error<T>> {
-        <CurrencyToAssetQueue<T>>::get(asset_id.clone())
+        <AssetToCurrencyQueue<T>>::get(asset_id.clone())
             .ok_or(Error::PairNotFound)
     }
 }

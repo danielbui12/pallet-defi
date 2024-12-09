@@ -7,6 +7,7 @@ impl<T: Config> Pallet<T> {
         currency_amount: BalanceOf<T>,
         token_amount: AssetBalanceOf<T>,
         buyer: AccountIdOf<T>,
+        recipient: AccountIdOf<T>,
     ) -> DispatchResult {
         let asset_id = pair.asset_id.clone();
         let pallet_account = T::pallet_account();
@@ -21,7 +22,7 @@ impl<T: Config> Pallet<T> {
         T::Assets::transfer(
             asset_id.clone(),
             &pallet_account,
-            &buyer,
+            &recipient,
             token_amount,
             Preservation::Expendable,
         )?;
@@ -35,6 +36,7 @@ impl<T: Config> Pallet<T> {
         Self::deposit_event(Event::SwappedCurrencyForAsset(
             asset_id,
             buyer,
+            recipient,
             currency_amount,
             token_amount,
         ));
@@ -47,10 +49,11 @@ impl<T: Config> Pallet<T> {
         currency_amount: BalanceOf<T>,
         token_amount: AssetBalanceOf<T>,
         buyer: AccountIdOf<T>,
+        recipient: AccountIdOf<T>,
     ) -> DispatchResult {
         let asset_id = pair.asset_id.clone();
         let pallet_account = T::pallet_account();
-        if buyer != pallet_account {
+        if recipient != pallet_account {
             <T as pallet::Config>::Currency::transfer(
                 &buyer,
                 &pallet_account,
@@ -75,6 +78,7 @@ impl<T: Config> Pallet<T> {
         Self::deposit_event(Event::SwappedAssetForCurrency(
             asset_id,
             buyer,
+            recipient,
             currency_amount,
             token_amount,
         ));
@@ -96,11 +100,13 @@ impl<T: Config> Pallet<T> {
             currency_amount,
             sold_token_amount,
             buyer.clone(),
+            pallet_account.clone(),
         )?;
         Self::do_cp_swap_currency_for_asset(
             bought_asset_pair,
             currency_amount,
             bought_token_amount,
+            pallet_account,
             buyer,
         )
     }

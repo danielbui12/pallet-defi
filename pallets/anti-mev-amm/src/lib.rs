@@ -339,27 +339,29 @@ pub mod pallet {
             AssetBalanceOf<T>,
             AssetBalanceOf<T>,
         ),
-        /// Currency was traded for an asset (asset_id, buyer_id, currency_amount, token_amount)
+        /// Currency was traded for an asset (asset_id, buyer_id,  recipient_id, currency_amount, token_amount)
         SwappedCurrencyForAsset(
             AssetIdOf<T>,
             T::AccountId,
-            BalanceOf<T>,
-            AssetBalanceOf<T>,
-        ),
-        /// An asset was traded for currency (asset_id, buyer_id, currency_amount, token_amount)
-        SwappedAssetForCurrency(
-            AssetIdOf<T>,
             T::AccountId,
             BalanceOf<T>,
             AssetBalanceOf<T>,
         ),
-        /// Add swap currency for asset tx to queue (asset_id, buyer_id, amount_in)
+        /// An asset was traded for currency (asset_id, buyer_id, recipient_id, currency_amount, token_amount)
+        SwappedAssetForCurrency(
+            AssetIdOf<T>,
+            T::AccountId,
+            T::AccountId,
+            BalanceOf<T>,
+            AssetBalanceOf<T>,
+        ),
+        /// Add swap currency for asset tx to queue (asset_id, recipient_id, amount_in)
         AddedSwapCurrencyForAsset(
             AssetIdOf<T>,
             T::AccountId,
             BalanceOf<T>,
         ),
-        /// Add swap asset for currency tx to queue (asset_id, buyer_id, amount_in)
+        /// Add swap asset for currency tx to queue (asset_id, recipient_id, amount_in)
         AddedSwapAssetForCurrency(
             AssetIdOf<T>,
             T::AccountId,
@@ -565,6 +567,7 @@ pub mod pallet {
                 pair,
                 currency_amount,
                 token_amount,
+                caller.clone(),
                 caller,
             )
         }
@@ -593,6 +596,7 @@ pub mod pallet {
                 pair,
                 currency_amount,
                 token_amount,
+                caller.clone(),
                 caller,
             )
         }
@@ -633,7 +637,88 @@ pub mod pallet {
             )
         }
 
-        // TODO: Add function swap asset to asset
+        #[pallet::call_index(95)]
+        #[pallet::weight(T::WeightInfo::default())]
+        pub fn add_swap_asset_for_asset(
+            origin: OriginFor<T>,
+            sold_asset_id: AssetIdOf<T>,
+            bought_asset_id: AssetIdOf<T>,
+            amount_in: AssetBalanceOf<T>,
+            deadline: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            // validate the input
+            let caller = ensure_signed(origin)?;
+            Self::check_deadline(&deadline)?;
+            ensure!(!amount_in.is_zero(), Error::<T>::TradeAmountIsZero);
+            Self::check_enough_tokens(&sold_asset_id, &caller, &amount_in)?;
+
+            let sold_pair = Self::get_pair(&sold_asset_id)?;
+            let sold_pair_asset_cumulative = Self::get_pair_asset_cumulative(&sold_asset_id, &caller);
+            let sold_pair_asset_queue = Self::get_pair_asset_queue(&sold_asset_id)?;
+
+            // pre compute to make sure the trade is possible
+            let currency_output = Self::cp_get_output_amount(
+                &T::asset_to_currency(amount_in),
+                &sold_pair.currency_reserve,
+                &T::asset_to_currency(sold_pair.token_reserve),
+            )?;
+
+            log::debug!(
+				target: LOG_TARGET,
+				"Current cumulative sold asset {:?} of {:?} is {:?}",
+				sold_asset_id,
+				caller,
+                sold_pair_asset_cumulative
+			);
+
+            let bought_pair = Self::get_pair(&bought_asset_id)?;
+            let bought_pair_currency_cumulative = Self::get_pair_currency_cumulative(&bought_asset_id, &caller);
+            let bought_pair_currency_queue = Self::get_pair_currency_queue(&bought_asset_id)?;
+
+            log::debug!(
+				target: LOG_TARGET,
+				"Current cumulative bought asset {:?} of {:?} is {:?}",
+				bought_asset_id,
+				caller,
+                bought_pair_currency_cumulative
+			);
+       
+            // pre compute to make sure the trade is possible
+            Self::cp_get_output_amount(
+                &currency_output,
+                &bought_pair.currency_reserve,
+                &T::asset_to_currency(bought_pair.token_reserve),
+            )?;
+
+            // transfer to pallet account
+            let pallet_account = T::pallet_account();
+            T::Assets::transfer(
+                sold_asset_id.clone(),
+                &caller,
+                &pallet_account,
+                amount_in.clone(),
+                Preservation::Expendable,
+            )?;
+            
+            // add tx to queue
+            Self::add_asset_to_currency_tx(
+                sold_asset_id,
+                amount_in,
+                pallet_account,
+                sold_pair_asset_cumulative,
+                sold_pair_asset_queue,
+            )?;
+            Self::add_currency_to_asset_tx(
+                bought_asset_id,
+                currency_output,
+                caller,
+                bought_pair_currency_cumulative,
+                bought_pair_currency_queue,
+            )?;
+
+
+            Ok(())
+        }
 
         #[pallet::call_index(96)]
         #[pallet::weight(T::WeightInfo::default())]
@@ -670,7 +755,6 @@ pub mod pallet {
             )?;
 
             // transfer to pallet account
-            let asset_id = pair.asset_id.clone();
             let pallet_account = T::pallet_account();
             <T as pallet::Config>::Currency::transfer(
                 &caller,
@@ -726,7 +810,6 @@ pub mod pallet {
             )?;
 
             // transfer to pallet account
-            let asset_id = pair.asset_id.clone();
             let pallet_account = T::pallet_account();
             T::Assets::transfer(
                 asset_id.clone(),
@@ -749,30 +832,30 @@ pub mod pallet {
             Ok(())
         }
 
-        // TODO: add function to settle and distribute asset
-
         #[pallet::call_index(99)]
         #[pallet::weight(T::WeightInfo::default())]
-        pub fn settle_and_distribute_currency(
+        pub fn settle_and_distribute(
             origin: OriginFor<T>,
             asset_id: AssetIdOf<T>,
         ) -> DispatchResult {
             let _executor = ensure_signed(origin)?;
             let currency_queue = Self::get_pair_currency_queue(&asset_id)?;
             let asset_queue = Self::get_pair_asset_queue(&asset_id)?;
+            let execute_items = T::MinQueueAmount::get();
             ensure!(
-                currency_queue.len() >= T::MinQueueAmount::get() as usize,
+                currency_queue.len() >= execute_items as usize,
                 Error::<T>::QueueTooSmall
             );
             ensure!(
-                asset_queue.len() >= T::MinQueueAmount::get() as usize,
+                asset_queue.len() >= execute_items as usize,
                 Error::<T>::QueueTooSmall
             );
             
             // Sum of all currency and asset in queue
-            let total_cumulative_currency: BalanceOf<T> = Self::calculate_cumulative_currency(&asset_id, &currency_queue);
+            let total_cumulative_currency: BalanceOf<T> = 
+                Self::calculate_cumulative_currency(&asset_id, &currency_queue, execute_items.clone() as usize);
             let total_cumulative_asset: BalanceOf<T> = T::asset_to_currency(
-                Self::calculate_cumulative_asset(&asset_id, &asset_queue)
+                Self::calculate_cumulative_asset(&asset_id, &asset_queue, execute_items.clone() as usize)
             );
             
             let modified_cumulative_currency =
@@ -831,7 +914,7 @@ pub mod pallet {
                 T::asset_to_currency(pair.token_reserve) + total_cumulative_asset - temporary_asset_reserve;
 
             // Distribute
-            for i in 0..currency_queue.len() {
+            for i in 0..execute_items.clone() as usize {
                 Self::do_anti_mev_swap_currency_for_asset(
                     &asset_id,
                     &currency_queue[i],
@@ -840,7 +923,7 @@ pub mod pallet {
                 )?;
             }
 
-            for i in 0..asset_queue.len() {
+            for i in 0..execute_items.clone() as usize {
                 Self::do_anti_mev_swap_asset_for_currency(
                     &asset_id,
                     &asset_queue[i],
@@ -861,10 +944,10 @@ pub mod pallet {
             );
 
             // Reset for the next settlement period
-            for i in 0..currency_queue.len() {
-                <AssetToCurrencyCumulative<T>>::remove(asset_id.clone(), currency_queue[i].clone());
+            for i in 0..(execute_items.clone() as usize) {
+                <CurrencyToAssetCumulative<T>>::remove(asset_id.clone(), currency_queue[i].clone());
             }
-            for i in 0..asset_queue.len() {
+            for i in 0..(execute_items.clone() as usize) {
                 <AssetToCurrencyCumulative<T>>::remove(asset_id.clone(), asset_queue[i].clone());
             }
             <CurrencyToAssetQueue<T>>::insert(asset_id.clone(), Vec::<T::AccountId>::new());
@@ -974,9 +1057,11 @@ pub mod pallet {
         pub(crate) fn calculate_cumulative_currency(
             asset_id: &AssetIdOf<T>,
             queue: &Vec<T::AccountId>,
+            max_usize: usize
         ) -> BalanceOf<T> {
             let mut total_cumulative: BalanceOf<T> = Zero::zero();
             queue.iter()
+                .take(max_usize)
                 .for_each(|account| {
                     total_cumulative += Self::get_pair_currency_cumulative(&asset_id, &account);
                 });
@@ -986,9 +1071,12 @@ pub mod pallet {
         pub(crate) fn calculate_cumulative_asset(
             asset_id: &AssetIdOf<T>,
             queue: &Vec<T::AccountId>,
+            max_usize: usize
         ) -> AssetBalanceOf<T> {
             let mut total_cumulative: AssetBalanceOf<T> = Zero::zero();
+            // just take max_usize elements
             queue.iter()
+                .take(max_usize)
                 .for_each(|account| {
                     total_cumulative += Self::get_pair_asset_cumulative(&asset_id, &account);
                 });

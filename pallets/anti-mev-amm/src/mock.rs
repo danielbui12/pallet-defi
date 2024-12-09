@@ -1,7 +1,7 @@
 use crate as pallet_anti_mev_amm;
 use frame_support::{
     traits::{
-        AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ConstU64, Everything,
+        AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ConstU64,
     },
     construct_runtime, parameter_types, derive_impl,
     PalletId,
@@ -14,12 +14,12 @@ use frame_system::{EnsureRoot, EnsureSigned};
 use sp_core::H256;
 
 type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test_Runtime>;
+type Block = frame_system::mocking::MockBlock<TestRuntime>;
 type Hash = H256;
 type AssetId = u32;
 
 construct_runtime!(
-	pub struct Test_Runtime {
+	pub struct TestRuntime {
 		System: frame_system,
 		Balances: pallet_balances,
         Assets: pallet_assets,
@@ -32,7 +32,7 @@ construct_runtime!(
 // for verbosity. Same for `pallet_balances::Config`.
 // https://paritytech.github.io/polkadot-sdk/master/frame_support/attr.derive_impl.html
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-impl frame_system::Config for Test_Runtime {
+impl frame_system::Config for TestRuntime {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -59,7 +59,7 @@ impl frame_system::Config for Test_Runtime {
 }
 
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
-impl pallet_balances::Config for Test_Runtime {
+impl pallet_balances::Config for TestRuntime {
     type Balance = u128;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
@@ -75,7 +75,7 @@ impl pallet_balances::Config for Test_Runtime {
     type RuntimeFreezeReason = ();
 }
 
-impl pallet_assets::Config for Test_Runtime {
+impl pallet_assets::Config for TestRuntime {
     type RuntimeEvent = RuntimeEvent;
     type Balance = Balance;
     type AssetId = AssetId;
@@ -101,7 +101,7 @@ parameter_types! {
     pub const AniMevAmmPalletId: PalletId = PalletId(*b"anti_mev");
 }
 
-impl pallet_anti_mev_amm::Config for Test_Runtime {
+impl pallet_anti_mev_amm::Config for TestRuntime {
     type PalletId = AniMevAmmPalletId;
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
@@ -143,12 +143,12 @@ pub(crate) const LIQ_TOKEN_B: u32 = 201;
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
     // Initialize the storage of the mock runtime
-    let mut storage = frame_system::GenesisConfig::<Test_Runtime>::default()
+    let mut storage = frame_system::GenesisConfig::<TestRuntime>::default()
         .build_storage()
         .unwrap();
    
     // Initialize the balances of the accounts
-    pallet_balances::GenesisConfig::<Test_Runtime> {
+    pallet_balances::GenesisConfig::<TestRuntime> {
         balances: vec![
             (ACCOUNT_ALICE, INIT_BALANCE),
             (ACCOUNT_BOB, INIT_BALANCE),
@@ -162,7 +162,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
     
     // Initialize the assets
-	pallet_assets::GenesisConfig::<Test_Runtime> {
+	pallet_assets::GenesisConfig::<TestRuntime> {
         assets: vec![
             (ASSET_A, ACCOUNT_ALICE, true, 1),
             (ASSET_B, ACCOUNT_ALICE, true, 1),
@@ -181,7 +181,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	.unwrap();
 
     // Initialize genesis assets
-    pallet_anti_mev_amm::GenesisConfig::<Test_Runtime> {
+    pallet_anti_mev_amm::GenesisConfig::<TestRuntime> {
         pairs: vec![(ACCOUNT_ALICE, ASSET_A, LIQ_TOKEN_A, INIT_LIQUIDITY, INIT_LIQUIDITY)],
     }
     .assimilate_storage(&mut storage)
@@ -195,18 +195,18 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     test_ext
 }
 
-pub(crate) fn last_event() -> pallet_anti_mev_amm::Event<Test_Runtime> {
-    last_n_events(1).pop().unwrap()
-}
+// pub(crate) fn last_event() -> pallet_anti_mev_amm::Event<TestRuntime> {
+//     last_n_events(1).pop().unwrap()
+// }
 
-pub(crate) fn last_n_events(n: usize) -> Vec<pallet_anti_mev_amm::Event<Test_Runtime>> {
-    let mut events: Vec<pallet_anti_mev_amm::Event<Test_Runtime>> = System::events()
-        .into_iter()
-        .map(|r| r.event)
-        .filter_map(|event| match event {
-            RuntimeEvent::AntiMevAmm(inner) => Some(inner),
-            _ => None,
-        })
-        .collect();
-    events.split_off(events.len() - n)
-}
+// pub(crate) fn last_n_events(n: usize) -> Vec<pallet_anti_mev_amm::Event<TestRuntime>> {
+//     let mut events: Vec<pallet_anti_mev_amm::Event<TestRuntime>> = System::events()
+//         .into_iter()
+//         .map(|r| r.event)
+//         .filter_map(|event| match event {
+//             RuntimeEvent::AntiMevAmm(inner) => Some(inner),
+//             _ => None,
+//         })
+//         .collect();
+//     events.split_off(events.len() - n)
+// }

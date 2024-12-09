@@ -1,7 +1,7 @@
 
-## Comparing No Sandwich Swap to Traditional DEXs
+## Comparing Anti MEV AMM to Traditional AMMs
 
-| Feature                | No Sandwich Swap      | Traditional DEXs      |
+| Feature                | Anti MEV AMM          | Traditional AMMs      |
 |------------------------|-----------------------|-----------------------|
 | **Anti-Front-Running** | Yes                   | No                    |
 | **Trade Privacy**      | Enhanced              | Limited               |
